@@ -90,8 +90,17 @@ tags[:unionall] = d -> UnionAll(d[:var], d[:body])
 lower(x::Vector{Any}) = copy(x)
 lower(x::Vector{UInt8}) = x
 
-reinterpret_(::Type{T}, x) where T =
-    T[_x for _x in reinterpret(T, x)]
+function reinterpret_(::Type{T}, x) where T
+  r = reinterpret(T, x)
+  if r isa Base.ReinterpretArray && !(r.readable)
+    # type mapping was successful, but the array is not readable due to padding
+    # in that case make r a type-cast view of the original array
+    # the data might not be restorable on a different machine with different padding or with a different version of Julia
+    @warn "storing structure with padding, data might not be restorable"
+    r = unsafe_wrap(Vector{T}, Ptr{T}(pointer(x)), sizeof(x))
+  end
+  T[_x for _x in r]
+end
 
 function lower(x::Array)
   ndims(x) == 1 && !isbitstype(eltype(x)) && return Any[x...]
