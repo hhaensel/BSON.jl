@@ -186,4 +186,14 @@ end
   rm("test_26_module_in_module.bson")
 end
 
+@testset "Arrays of mixed-type tuples" begin
+  a = [(1, true), (2, false)]
+  @test roundtrip_equal(a)
+  @test_logs (:warn, r"Storing structure") BSON.roundtrip(a)
+  x = BSON.WARN_PADDING[]
+  BSON.WARN_PADDING[] = false
+  @test_logs BSON.roundtrip(a)
+  BSON.WARN_PADDING[] = x
+end
+
 end
