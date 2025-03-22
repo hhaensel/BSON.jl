@@ -90,16 +90,25 @@ tags[:unionall] = d -> UnionAll(d[:var], d[:body])
 lower(x::Vector{Any}) = copy(x)
 lower(x::Vector{UInt8}) = x
 
+const WARN_PADDING = Ref(true)
+
 function reinterpret_(::Type{T}, x) where T
   r = reinterpret(T, x)
   if r isa Base.ReinterpretArray && !(r.readable)
     # type mapping was successful, but the array is not readable due to padding
-    # in that case make r a type-cast view of the original array
+    # in that case make use unsafe_wrap() to map the data 
     # the data might not be restorable on a different machine with different padding or with a different version of Julia
-    @warn "storing structure with padding, data might not be restorable"
-    r = unsafe_wrap(Vector{T}, Ptr{T}(pointer(x)), sizeof(x))
+    WARN_PADDING[] && @warn """
+    Storing structure with padding, data might not be restorable.\n
+    To suppress this warning, set BSON.WARN_PADDING[] = false.
+    """
+    GC.@preserve x begin
+      a = unsafe_wrap(Vector{T}, Ptr{T}(pointer(x)), sizeof(x) ÷ sizeof(T))
+      T[_x for _x in a]
+    end
+  else
+      T[_x for _x in r]
   end
-  T[_x for _x in r]
 end
 
 function lower(x::Array)
